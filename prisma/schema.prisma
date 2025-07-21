@@ -1,0 +1,296 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                        Int               @id @default(autoincrement())
+  firstName                 String
+  middleName                String?
+  lastName                  String
+  email                     String?           @unique
+  phoneNumber               String            @unique
+  password                  String
+  isActive                  Boolean           @default(true)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime?         @updatedAt
+  birthDate                 DateTime
+  bloodType                 String?
+  profileImg                String?
+  roleId                    Int
+  verificationToken         String?
+  isVerified                Boolean           @default(false)
+  city                      String
+  country                   String
+  street                    String
+  houseNumber               String
+  Role                      Role              @relation(fields: [roleId], references: [id])
+  StaffDetails              StaffDetails?
+  patientAppointments       Appointment[]     @relation("PatientAppointments")
+  doctorAppointments        Appointment[]     @relation("DoctorAppointments")
+  patientReferral           Referral[]        @relation("ReferralPatient")
+  doctorReferral            Referral[]        @relation("ReferralCreator")
+  patientHospitalization    Hospitalization[] @relation("HospitalizationPatient")
+  doctorHospitalization     Hospitalization[] @relation("HospitalizationDoctor")
+  EmployeeRequestCreatedBy  EmployeeRequest[] @relation("CreatedRequests")
+  EmployeeRequestAprrovedBy EmployeeRequest[] @relation("ApprovedRequests")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  User        User[]
+}
+
+model Position {
+  id               Int            @id @default(autoincrement())
+  position         String
+  responsibilities String
+  baseSalary       Float
+  specialty        String?
+  StaffDetails     StaffDetails[]
+  Referral         Referral[]
+  Service          Service[]
+}
+
+model StaffDetails {
+  id                         Int           @id @default(autoincrement())
+  hireDate                   DateTime
+  firedDate                  DateTime?
+  salaryMultiplier           Float
+  officeNumber               Int?
+  positionId                 Int
+  userId                     Int           @unique
+  appointmentDurationMinutes Int?
+  Position                   Position      @relation(fields: [positionId], references: [id])
+  User                       User          @relation(fields: [userId], references: [id])
+  workSchedules              WorkShedule[] @relation("StaffWorkSchedules")
+  departmentId               Int?
+  Department                 Department?   @relation(fields: [departmentId], references: [id])
+}
+
+model SheduleSlot {
+  id            Int           @id @default(autoincrement())
+  dayOfWeek     String
+  startTime     String
+  endTime       String
+  workSchedules WorkShedule[] @relation("SlotWorkSchedules")
+}
+
+model WorkShedule {
+  id             Int          @id @default(autoincrement())
+  staffDetailsId Int
+  staffDetails   StaffDetails @relation("StaffWorkSchedules", fields: [staffDetailsId], references: [id])
+  sheduleSlotId  Int
+  sheduleSlot    SheduleSlot  @relation("SlotWorkSchedules", fields: [sheduleSlotId], references: [id])
+
+  @@unique([staffDetailsId, sheduleSlotId])
+}
+
+model Appointment {
+  id               Int               @id @default(autoincrement())
+  dateAndtime      DateTime
+  status           Status            @default(pending)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  patientId        Int
+  doctorId         Int
+  serviceId        Int
+  referralId       Int?
+  patient          User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor           User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  service          Service           @relation(fields: [serviceId], references: [id])
+  referral         Referral?         @relation(fields: [referralId], references: [id])
+  AppointmentNotes AppointmentNotes?
+  Hospitalization  Hospitalization?
+  Payment          Payment?
+}
+
+enum Status {
+  pending
+  canceled
+  completed
+}
+
+model AppointmentNotes {
+  id              Int         @id @default(autoincrement())
+  complains       String
+  treatment       String?
+  predscribedMeds String?
+  additionalNotes String?
+  createdAt       DateTime    @default(now())
+  diagnosis       String?
+  appointmentId   Int         @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model Referral {
+  id          Int           @id @default(autoincrement())
+  code        String        @unique
+  createdAt   DateTime      @default(now())
+  isActive    Boolean       @default(true)
+  patientId   Int
+  patient     User          @relation("ReferralPatient", fields: [patientId], references: [id])
+  creatorId   Int
+  creator     User          @relation("ReferralCreator", fields: [creatorId], references: [id])
+  positionId  Int
+  position    Position      @relation(fields: [positionId], references: [id])
+  Appointment Appointment[]
+}
+
+model Department {
+  id            Int             @id @default(autoincrement())
+  name          String
+  description   String?
+  floor         Int?
+  phone         String?
+  email         String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  Staff         StaffDetails[]
+  Wards         Ward[]
+  MedicineOrder MedicineOrder[]
+}
+
+model Ward {
+  id           Int         @id @default(autoincrement())
+  number       Int
+  type         String?
+  isActive     Boolean     @default(true)
+  departmentId Int
+  Department   Department  @relation(fields: [departmentId], references: [id])
+  WardPlaces   WardPlace[]
+}
+
+model WardPlace {
+  id          Int     @id @default(autoincrement())
+  placeNumber Int
+  isFree      Boolean @default(true)
+  wardId      Int
+  Ward        Ward    @relation(fields: [wardId], references: [id])
+
+  Hospitalization Hospitalization[]
+}
+
+model Hospitalization {
+  id            Int         @id @default(autoincrement())
+  patientId     Int
+  doctorId      Int
+  wardPlaceId   Int
+  appointmentId Int         @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime?   @updatedAt
+  dischargeDate DateTime?
+  patient       User        @relation("HospitalizationPatient", fields: [patientId], references: [id])
+  doctor        User        @relation("HospitalizationDoctor", fields: [doctorId], references: [id])
+  wardPlace     WardPlace   @relation(fields: [wardPlaceId], references: [id])
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model Medicine {
+  id               Int                @id @default(autoincrement())
+  name             String
+  dose             String
+  quantity         Int
+  totalQuantity    Int
+  unit             String
+  manufacturer     String?
+  expirationDate   DateTime
+  totalPrice       Float
+  invoiceNumber    String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  MedicineWriteOff MedicineWriteOff[]
+  MedicineOrder    MedicineOrder[]
+}
+
+model MedicineWriteOff {
+  id                 Int      @id @default(autoincrement())
+  medicineId         Int
+  quantity           Int
+  reason             String
+  writeOffDate       DateTime @default(now())
+  totalWriteOffPrice Float
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  medicine           Medicine @relation(fields: [medicineId], references: [id])
+}
+
+model MedicineOrder {
+  id           Int        @id @default(autoincrement())
+  medicineId   Int
+  quantity     Int
+  departmentId Int
+  orderDate    DateTime   @default(now())
+  status       Status     @default(pending)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  medicine     Medicine   @relation(fields: [medicineId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id])
+}
+
+model EmployeeRequest {
+  id           Int           @id @default(autoincrement())
+  requestType  RequestType
+  description  String
+  startDate    DateTime?
+  endDate      DateTime?
+  status       RequestStatus @default(pending)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  createdById  Int
+  approvedById Int?
+
+  createdBy  User  @relation("CreatedRequests", fields: [createdById], references: [id])
+  approvedBy User? @relation("ApprovedRequests", fields: [approvedById], references: [id])
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+  canceled
+}
+
+enum RequestType {
+  SICK_LEAVE
+  VACATION
+  OTHER
+}
+
+model Service {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  positionId  Int
+  position    Position      @relation(fields: [positionId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  Appointment Appointment[]
+}
+
+model Payment {
+  id              Int         @id @default(autoincrement())
+  paymentMethod   String
+  amount          Int
+  currency        String
+  status          String      @default("in progress")
+  paymentIntentId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime?
+  appointmentId   Int         @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id])
+}
